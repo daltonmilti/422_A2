@@ -119,6 +119,13 @@ int main (int argc, char * argv[])
   // return 0;
   // ----------------------------------------------------------
 
+    // Allocate memory for the bounded buffer
+    bigmatrix = (Matrix **) malloc(sizeof(Matrix *) * BOUNDED_BUFFER_SIZE);
+    if (bigmatrix == NULL) {
+      fprintf(stderr, "Failed to allocate memory for bounded buffer\n");
+      return 1;
+    }
+
 
 
   printf("Producing %d matrices in mode %d.\n",NUMBER_OF_MATRICES,MATRIX_MODE);

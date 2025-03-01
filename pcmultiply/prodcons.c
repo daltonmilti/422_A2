@@ -66,7 +66,7 @@ Matrix * get()
 	pthread_mutex_lock(&buffer_mutex);
 
 	// If the buffer is empty, wait until a producer adds an item
-	while (count == 0( {
+	while (count == 0) {
 		pthread_cond_wait(&not_empty, &buffer_mutex);
 	}
 
@@ -74,7 +74,7 @@ Matrix * get()
 	Matrix *value = bigmatrix[out];
 
 	// Update 'out' index
-	out = (out - 1) % BOUNDED_BUFFER_SIZE;
+	out = (out + 1) % BOUNDED_BUFFER_SIZE;
 
 	// Decrement 'count'
 	count--;
@@ -83,7 +83,7 @@ Matrix * get()
 	pthread_cond_signal(&not_full);
 
 	// Unlock the buffer
-	pthread_mutex_unlock(#buffer_mutex);
+	pthread_mutex_unlock(&buffer_mutex);
 
 	// Return the matrix pointer
  	return value;

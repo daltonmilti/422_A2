@@ -95,30 +95,22 @@ Matrix * get()
 }
 
 // Matrix PRODUCER worker thread
-void *prod_worker(void *arg) {
-    // Allocate and initialize the statistics structure for this thread.
-    ProdConsStats *stats = malloc(sizeof(ProdConsStats));
-    stats->sumtotal = 0;
-    stats->matrixtotal = 0;
-    stats->multtotal = 0;
+void *prod_worker(void *arg)
+{
+	// Allocate and Initialize local statisitcs structure
+	ProdConsStats *stats = malloc(sizeof(ProdConsStats));
+	stats->sumTotal = 0;
+	stats->matrixTotal = 0;
+	stats->multtotal = 0;
 
-    // Loop until the total number of produced matrices reaches NUMBER_OF_MATRICES.
-    while (1) {
-        // Lock the global counter to check if we are done producing.
-        pthread_mutex_lock(&global_counter_mutex);
-        if (globalProduced >= NUMBER_OF_MATRICES) {
-            pthread_mutex_unlock(&global_counter_mutex);
-            break;  // All required matrices have been produced.
-        }
-        // Increase the global produced count.
-        globalProduced++;
-        pthread_mutex_unlock(&global_counter_mutex);
+	// Loop until global production counter reaches NUMBER_OF_MATRICIES
+	while (globalProduced <= NUMBER_OF_MATRICIES) {
+		// Generate a new matrix
+		Matrix *mat = GenMatrixRandom();
 
-        // Generate a new matrix.
-        Matrix *mat = GenMatrixRandom();
-        // Update local statistics: add the sum of elements and increment the count.
-        stats->sumtotal += SumMatrix(mat);
-        stats->matrixtotal++;
+		// Update local stats
+		stats->sumTotal += SumMatrix(mat);
+		stats->matrixTotal++;
 
         // Insert the generated matrix into the bounded buffer.
         put(mat);

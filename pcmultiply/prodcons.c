@@ -179,6 +179,14 @@ void *cons_worker(void *arg)
             stats->sumtotal += SumMatrix(m2);
 
             if (m1->cols == m2->rows) {
+                // Display matrices before multiplying
+                printf("\nMATRIX MULTIPLICATION:\n");
+                DisplayMatrix(m1, stdout);
+                printf("    X\n");
+                DisplayMatrix(m2, stdout);
+                printf("    =\n");
+
+                // Perform multiplication
                 result = MatrixMultiply(m1, m2);
                 break;
             } else {
@@ -190,7 +198,7 @@ void *cons_worker(void *arg)
 
         // If multiplication was successful, display the result
         if (result != NULL) {
-            DisplayMatrix(result, stdout); // <-- ADDED BACK
+            DisplayMatrix(result, stdout);
             stats->multtotal++;
             FreeMatrix(result);
         }

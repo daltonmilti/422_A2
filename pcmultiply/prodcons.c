@@ -98,19 +98,19 @@ Matrix * get()
 void *prod_worker(void *arg)
 {
 	// Allocate and Initialize local statisitcs structure
-	ProdConsStats *stats = malloc(sizeof(ProdConstStats));
+	ProdConsStats *stats = malloc(sizeof(ProdConsStats));
 	stats->sumTotal = 0;
 	stats->matrixTotal = 0;
 	stats->multtotal = 0;
 
 	// Loop until global production counter reaches NUMBER_OF_MATRICIES
-	while (globalProduced <= NUMER_OF_MATRICIES) {
+	while (globalProduced <= NUMBER_OF_MATRICIES) {
 		// Generate a new matrix
 		Matrix *mat = GenMatrixRandom();
 
 		// Update local stats
 		stats->sumTotal += SumMatrix(mat);
-		stats->matrixTOtal++;
+		stats->matrixTotal++;
 
 		// Insert the new matrix into the bounded buffer
 		put(mat);

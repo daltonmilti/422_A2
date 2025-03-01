@@ -65,31 +65,40 @@ int put(Matrix * value)
 
 Matrix * get()
 {
-	// Lock the buffer for exclusive access
-	pthread_mutex_lock(&buffer_mutex);
+    // Lock the buffer for exclusive access
+    pthread_mutex_lock(&buffer_mutex);
 
-	// If the buffer is empty, wait until a producer adds an item
-	while (count == 0) {
-		pthread_cond_wait(&not_empty, &buffer_mutex);
-	}
+    while (count == 0) {
+        // Check if production has finished, preventing an infinite wait
+        pthread_mutex_lock(&global_counter_mutex);
+        int finished = (globalProduced >= NUMBER_OF_MATRICES);
+        pthread_mutex_unlock(&global_counter_mutex);
 
-	// Get matrix pointer from buffer at 'out'
-	Matrix *value = bigmatrix[out];
+        if (finished) {
+            pthread_mutex_unlock(&buffer_mutex);
+            return NULL; // Return NULL to signal that no more matrices will be produced
+        }
 
-	// Update 'out' index (circular buffer)
-	out = (out + 1) % BOUNDED_BUFFER_SIZE;
+        pthread_cond_wait(&not_empty, &buffer_mutex);
+    }
 
-	// Decrement 'count'
-	count--;
+    // Get matrix pointer from buffer at 'out'
+    Matrix *value = bigmatrix[out];
 
-	// Signal that there is space available for producers
-	pthread_cond_signal(&not_full);
+    // Update 'out' index (circular buffer)
+    out = (out + 1) % BOUNDED_BUFFER_SIZE;
 
-	// Unlock the buffer
-	pthread_mutex_unlock(&buffer_mutex);
+    // Decrement 'count'
+    count--;
 
-	// Return the matrix pointer
- 	return value;
+    // Signal that there is space available for producers
+    pthread_cond_signal(&not_full);
+
+    // Unlock the buffer
+    pthread_mutex_unlock(&buffer_mutex);
+
+    // Return the matrix pointer
+    return value;
 }
 
 // Matrix PRODUCER worker thread
@@ -131,61 +140,69 @@ void *prod_worker(void *arg)
 // Matrix CONSUMER worker thread
 void *cons_worker(void *arg)
 {
-	// Allocate and initialize local statistics structure
-	ProdConsStats *stats = malloc(sizeof(ProdConsStats));
-	stats->sumtotal = 0;
-	stats->matrixtotal = 0;
-	stats->multtotal = 0;
+    // Allocate and initialize local statistics structure
+    ProdConsStats *stats = malloc(sizeof(ProdConsStats));
+    stats->sumtotal = 0;
+    stats->matrixtotal = 0;
+    stats->multtotal = 0;
 
-	while (1) {
-		// Check if all matrices have been consumed
-		pthread_mutex_lock(&global_counter_mutex);
-		if (globalConsumed >= NUMBER_OF_MATRICES) {
-			pthread_mutex_unlock(&global_counter_mutex);
-			break;
-		}
-		pthread_mutex_unlock(&global_counter_mutex);
+    while (1) {
+        // Check if all matrices have been consumed
+        pthread_mutex_lock(&global_counter_mutex);
+        if (globalConsumed >= NUMBER_OF_MATRICES) {
+            pthread_mutex_unlock(&global_counter_mutex);
+            break;
+        }
+        pthread_mutex_unlock(&global_counter_mutex);
 
-		// Retrieve the first matrix (M1) from the bounded buffer
-		Matrix *m1 = get();
-		stats->matrixtotal++;
-		stats->sumtotal += SumMatrix(m1);
+        // Retrieve the first matrix (M1) from the bounded buffer
+        Matrix *m1 = get();
+        if (m1 == NULL) { // Stop if no more matrices are available
+            break;
+        }
 
-		Matrix *m2 = NULL;
-		Matrix *result = NULL;
+        stats->matrixtotal++;
+        stats->sumtotal += SumMatrix(m1);
 
-		// Loop to find a valid second matrix (M2) that can be multiplied with M1
-		while (1) {
-			m2 = get();
-			stats->matrixtotal++;
-			stats->sumtotal += SumMatrix(m2);
-			if (m1->cols == m2->rows) {
-				// Valid pair found; multiply them.
-				result = MatrixMultiply(m1, m2);
-				break;
-			} else {
-				// The matrices are incompatible; free M2 and try again.
-				FreeMatrix(m2);
-			}
-		}
+        Matrix *m2 = NULL;
+        Matrix *result = NULL;
 
-		// If multiplication was successful, display and record it.
-		if (result != NULL) {
-			DisplayMatrix(result, stdout);
-			stats->multtotal++;
-			FreeMatrix(result);
-		}
+        // Try retrieving a valid second matrix (M2), but avoid infinite loop
+        int attempts = 0;
+        while (attempts < NUMBER_OF_MATRICES) { // Limit retries to prevent deadlock
+            m2 = get();
+            if (m2 == NULL) {
+                break; // Stop if no more matrices
+            }
 
-		// Free m2 (if not already freed) and m1.
-		FreeMatrix(m2);
-		FreeMatrix(m1);
+            stats->matrixtotal++;
+            stats->sumtotal += SumMatrix(m2);
 
-		// Update the global consumption counter (m1 and m2 have been consumed)
-		pthread_mutex_lock(&global_counter_mutex);
-		globalConsumed += 2;
-		pthread_mutex_unlock(&global_counter_mutex);
-	}
+            if (m1->cols == m2->rows) {
+                result = MatrixMultiply(m1, m2);
+                break;
+            } else {
+                FreeMatrix(m2); // Free and retry
+            }
 
-	// Return the statistics pointer so main() can aggregate results
-	return stats;
+            attempts++;
+        }
+
+        if (result != NULL) {
+            stats->multtotal++;
+            FreeMatrix(result);
+        }
+
+        FreeMatrix(m1);
+        if (m2 != NULL) FreeMatrix(m2); // Avoid freeing NULL
+
+        // Update the global consumption counter (m1 and m2 have been consumed)
+        pthread_mutex_lock(&global_counter_mutex);
+        globalConsumed += 2;
+        pthread_mutex_unlock(&global_counter_mutex);
+    }
+
+    // Return the statistics pointer so main() can aggregate results
+    return stats;
 }
+

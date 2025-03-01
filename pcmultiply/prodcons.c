@@ -157,7 +157,7 @@ void *cons_worker(void *arg)
 
         // Retrieve the first matrix (M1) from the bounded buffer
         Matrix *m1 = get();
-        if (m1 == NULL) { // Stop if no more matrices are available
+        if (m1 == NULL) { // Stop if no more matrices
             break;
         }
 
@@ -167,9 +167,9 @@ void *cons_worker(void *arg)
         Matrix *m2 = NULL;
         Matrix *result = NULL;
 
-        // Try retrieving a valid second matrix (M2), but avoid infinite loop
+        // Try retrieving a valid second matrix (M2), avoid infinite loop
         int attempts = 0;
-        while (attempts < NUMBER_OF_MATRICES) { // Limit retries to prevent deadlock
+        while (attempts < NUMBER_OF_MATRICES) {
             m2 = get();
             if (m2 == NULL) {
                 break; // Stop if no more matrices
@@ -188,7 +188,9 @@ void *cons_worker(void *arg)
             attempts++;
         }
 
+        // If multiplication was successful, display the result
         if (result != NULL) {
+            DisplayMatrix(result, stdout); // <-- ADDED BACK
             stats->multtotal++;
             FreeMatrix(result);
         }
@@ -202,7 +204,7 @@ void *cons_worker(void *arg)
         pthread_mutex_unlock(&global_counter_mutex);
     }
 
-    // Return the statistics pointer so main() can aggregate results
     return stats;
 }
+
 

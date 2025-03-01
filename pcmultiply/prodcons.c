@@ -95,37 +95,95 @@ Matrix * get()
 }
 
 // Matrix PRODUCER worker thread
-void *prod_worker(void *arg)
-{
-	// Allocate and Initialize local statisitcs structure
-	ProdConsStats *stats = malloc(sizeof(ProdConstStats));
-	stats->sumTotal = 0;
-	stats->matrixTotal = 0;
-	stats->multtotal = 0;
+void *prod_worker(void *arg) {
+    // Allocate and initialize the statistics structure for this thread.
+    ProdConsStats *stats = malloc(sizeof(ProdConsStats));
+    stats->sumtotal = 0;
+    stats->matrixtotal = 0;
+    stats->multtotal = 0;
 
-	// Loop until global production counter reaches NUMBER_OF_MATRICIES
-	while (globalProduced <= NUMER_OF_MATRICIES) {
-		// Generate a new matrix
-		Matrix *mat = GenMatrixRandom();
+    // Loop until the total number of produced matrices reaches NUMBER_OF_MATRICES.
+    while (1) {
+        // Lock the global counter to check if we are done producing.
+        pthread_mutex_lock(&global_counter_mutex);
+        if (globalProduced >= NUMBER_OF_MATRICES) {
+            pthread_mutex_unlock(&global_counter_mutex);
+            break;  // All required matrices have been produced.
+        }
+        // Increase the global produced count.
+        globalProduced++;
+        pthread_mutex_unlock(&global_counter_mutex);
 
-		// Update local stats
-		stats->sumTotal += SumMatrix(mat);
-		stats->matrixTOtal++;
+        // Generate a new matrix.
+        Matrix *mat = GenMatrixRandom();
+        // Update local statistics: add the sum of elements and increment the count.
+        stats->sumtotal += SumMatrix(mat);
+        stats->matrixtotal++;
 
-		// Insert the new matrix into the bounded buffer
-		put(mat);
+        // Insert the generated matrix into the bounded buffer.
+        put(mat);
+    }
 
-		// Update the global production counter using mutex
-		pthread_mutex_lock(&global_counter_mutex);
-		globalProduced++;
-		pthread_mutex_unlock(&global_counter_mutex);
-	}
-
- 	return NULL;
+    // Return the statistics pointer so main() can aggregate results.
+    return stats;
 }
 
 // Matrix CONSUMER worker thread
-void *cons_worker(void *arg)
-{
-  return NULL;
+void *cons_worker(void *arg) {
+    // Allocate and initialize the statistics structure for this thread.
+    ProdConsStats *stats = malloc(sizeof(ProdConsStats));
+    stats->sumtotal = 0;
+    stats->matrixtotal = 0;
+    stats->multtotal = 0;
+
+    while (1) {
+        // Check if all matrices have been consumed.
+        pthread_mutex_lock(&global_counter_mutex);
+        if (globalConsumed >= NUMBER_OF_MATRICES) {
+            pthread_mutex_unlock(&global_counter_mutex);
+            break;  // No more matrices to consume.
+        }
+        pthread_mutex_unlock(&global_counter_mutex);
+
+        // Retrieve the first matrix (M1) from the bounded buffer.
+        Matrix *m1 = get();
+        stats->matrixtotal++;
+        stats->sumtotal += SumMatrix(m1);
+
+        Matrix *m2 = NULL;
+        Matrix *result = NULL;
+
+        // Loop to find a valid second matrix (M2) that can be multiplied with M1.
+        while (1) {
+            m2 = get();
+            stats->matrixtotal++;
+            stats->sumtotal += SumMatrix(m2);
+            if (m1->cols == m2->rows) {
+                // Valid pair found; multiply them.
+                result = MatrixMultiply(m1, m2);
+                break;
+            } else {
+                // The matrices are incompatible; free M2 and try again.
+                FreeMatrix(m2);
+            }
+        }
+
+        // If multiplication was successful, display and record it.
+        if (result != NULL) {
+            DisplayMatrix(result, stdout);
+            stats->multtotal++;
+            FreeMatrix(result);
+        }
+
+        // Free the first matrix.
+        FreeMatrix(m1);
+
+        // Update the global consumption counter (note: m1 and m2 have both been consumed).
+        pthread_mutex_lock(&global_counter_mutex);
+        globalConsumed += 2;
+        pthread_mutex_unlock(&global_counter_mutex);
+    }
+
+    // Return the statistics pointer so main() can aggregate results.
+    return stats;
 }

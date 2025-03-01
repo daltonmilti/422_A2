@@ -29,6 +29,11 @@ int in = 0; // Next index to produce into
 int out = 0; // Next index to consume from
 int count = 0; // Number of matrices currently in buffer
 
+// Global counters for production and consumption
+int globalProduced = 0;
+int globalConsumed = 0;
+pthread_mutex_t global_counter_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 // Bounded buffer put() get()
 int put(Matrix * value)
@@ -92,7 +97,31 @@ Matrix * get()
 // Matrix PRODUCER worker thread
 void *prod_worker(void *arg)
 {
-  return NULL;
+	// Allocate and Initialize local statisitcs structure
+	ProdConsStats *stats = malloc(sizeof(ProdConstStats));
+	stats->sumTotal = 0;
+	stats->matrixTotal = 0;
+	stats->multtotal = 0;
+
+	// Loop until global production counter reaches NUMBER_OF_MATRICIES
+	while (globalProduced <= NUMER_OF_MATRICIES) {
+		// Generate a new matrix
+		Matrix *mat = GenMatrixRandom();
+
+		// Update local stats
+		stats->sumTotal += SumMatrix(mat);
+		stats->matrixTOtal++;
+
+		// Insert the new matrix into the bounded buffer
+		put(mat);
+
+		// Update the global production counter using mutex
+		pthread_mutex_lock(&global_counter_mutex);
+		globalProduced++;
+		pthread_mutex_unlock(&global_counter_mutex);
+	}
+
+ 	return NULL;
 }
 
 // Matrix CONSUMER worker thread

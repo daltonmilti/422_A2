@@ -45,7 +45,7 @@ int put(Matrix * value)
 	bigmatrix[in] = value;
 
 	// Update 'in' index
-	in = in + 1;
+	in = (in + 1) % BOUNDED_BUFFER_SIZE; // We modulo 'in' because this is a circular buffer
 
 	// Increment 'count'
 	count = count + 1;

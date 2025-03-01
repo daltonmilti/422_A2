@@ -17,16 +17,47 @@
 #include "matrix.h"
 #include "pcmatrix.h"
 #include "prodcons.h"
-
+#include <pthread.h>
 
 // Define Locks, Condition variables, and so on here
+pthread_mutex_t buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t not_full = PTHREAD_COND_INITIALIZER;
+pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
 
+// Indices for the buffer
+int in = 0; // Next index to produce into
+int out = 0; // Next index to consume from
+int count = 0; // Number of matrices currently in buffer
 
 
 // Bounded buffer put() get()
 int put(Matrix * value)
 {
+	// Lock the buffer for exclusive access
+	pthread_mutex_lock(&buffer_mutex);
 
+	// If the buffer is full, wait until a consumer removes an item
+	while (count == BOUNDED_BUFFER_SIZE) {
+		pthread_cond_wait(&not_full, &buffer_mutex);
+	}
+
+	// Insert matrix pointer into buffer at 'in'
+	bigmatrix[in] = value;
+
+	// Update 'in' index
+	in = in + 1;
+
+	// Increment 'count'
+	count = count + 1;
+
+	// Signal that there is at least one item available for consumers
+	pthread_cond_signal(&not_empty);
+
+	// Unlock the buffer
+	pthread_mutex_unlock(&buffer_mutex);
+
+	// Success
+	return 0;
 }
 
 Matrix * get()

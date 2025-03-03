@@ -22,6 +22,7 @@
 pthread_mutex_t buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t not_full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t not_empty = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t stdout_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Indices for the buffer
 int in = 0; // Next index to produce into
@@ -179,7 +180,9 @@ void *cons_worker(void *arg)
             stats->sumtotal += SumMatrix(m2);
 
             if (m1->cols == m2->rows) {
-                // Format the display in the desired format
+				// mutex lock before display
+				pthread_mutex_lock(&stdout_mutex);
+                // Format the display in the this format
                 printf("\nMULTIPLY (%d x %d) BY (%d x %d):\n", 
                        m1->rows, m1->cols, m2->rows, m2->cols);
                 
@@ -206,6 +209,8 @@ void *cons_worker(void *arg)
             stats->multtotal++;
             FreeMatrix(result);
         }
+		    // Unlock the mutex after all display operations
+			pthread_mutex_unlock(&stdout_mutex);
 
         FreeMatrix(m1);
         if (m2 != NULL) FreeMatrix(m2); // Avoid freeing NULL

@@ -233,8 +233,8 @@ int main (int argc, char * argv[])
   }
 
 
-  printf("Sum of Matrix elements --> Produced=%d = Consumed=%d\n",prs,cos);
-  printf("Matrices produced=%d consumed=%d multiplied=%d\n",prodtot,constot,consmul);
+  printf("Sum of Matrix elements --> Produced=%d = Consumed=%d\n",prodtot,constot);
+  printf("Matrices produced=%d consumed=%d multiplied=%d\n",prs,cos,consmul);
 
   // Free memory for statistics
   for (int i = 0; i < numw; i++) {

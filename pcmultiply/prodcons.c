@@ -179,13 +179,16 @@ void *cons_worker(void *arg)
             stats->sumtotal += SumMatrix(m2);
 
             if (m1->cols == m2->rows) {
-                // Display matrices in the same format as the demonstration code
-                printf("\nMATRIX MULTIPLICATION DEMO:\n\n");
+                // Format the display in the desired format
+                printf("\nMULTIPLY (%d x %d) BY (%d x %d):\n", 
+                       m1->rows, m1->cols, m2->rows, m2->cols);
+                
+                // Display the matrices
                 DisplayMatrix(m1, stdout);
                 printf("    X\n");
                 DisplayMatrix(m2, stdout);
                 printf("    =\n");
-
+				
                 // Perform multiplication
                 result = MatrixMultiply(m1, m2);
                 break;

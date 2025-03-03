@@ -133,32 +133,78 @@ int main (int argc, char * argv[])
   printf("With %d producer and consumer thread(s).\n",numw);
   printf("\n");
 
-  // define one producer and one consumer
-  pthread_t pr;
-  pthread_t co;
+  // Create arrays of threads for producers and consumers
+  pthread_t *pr = (pthread_t *) malloc(sizeof(pthread_t) * numw);
+  pthread_t *co = (pthread_t *) malloc(sizeof(pthread_t) * numw);
 
-  // Variables to store the statistics returned by threads
-  ProdConsStats *producer_stats = NULL;
-  ProdConsStats *consumer_stats = NULL;
-
-  // Create the producer thread
-  if (pthread_create(&pr, NULL, prod_worker, NULL) != 0) {
-    fprintf(stderr, "Failed to create producer thread\n");
+  if (pr == NULL || co == NULL) {
+    fprintf(stderr, "Failed to allocate memory for thread arrays\n");
     free(bigmatrix);
+    if (pr) free(pr);
+    if (co) free(co);
     return 1;
+  }
+
+   // Arrays to store statistics from each thread
+   ProdConsStats **producer_stats = (ProdConsStats **) malloc(sizeof(ProdConsStats *) * numw);
+   ProdConsStats **consumer_stats = (ProdConsStats **) malloc(sizeof(ProdConsStats *) * numw);
+
+   if (producer_stats == NULL || consumer_stats == NULL) {
+    fprintf(stderr, "Failed to allocate memory for statistics arrays\n");
+    free(bigmatrix);
+    free(pr);
+    free(co);
+    if (producer_stats) free(producer_stats);
+    if (consumer_stats) free(consumer_stats);
+    return 1;
+  }
+
+  // Create producer threads
+  for (int i = 0; i < numw; i++) {
+    if (pthread_create(&pr[i], NULL, prod_worker, NULL) != 0) {
+      fprintf(stderr, "Failed to create producer thread %d\n", i);
+      // Clean up already created threads
+      for (int j = 0; j < i; j++) {
+        pthread_cancel(pr[j]);
+      }
+      free(bigmatrix);
+      free(pr);
+      free(co);
+      free(producer_stats);
+      free(consumer_stats);
+      return 1;
+    }
   }
   
-  // Create the consumer thread
-  if (pthread_create(&co, NULL, cons_worker, NULL) != 0) {
-    fprintf(stderr, "Failed to create consumer thread\n");
-    pthread_cancel(pr);
-    free(bigmatrix);
-    return 1;
+  // Create consumer threads
+  for (int i = 0; i < numw; i++) {
+    if (pthread_create(&co[i], NULL, cons_worker, NULL) != 0) {
+      fprintf(stderr, "Failed to create consumer thread %d\n", i);
+      // Clean up already created threads
+      for (int j = 0; j < numw; j++) {
+        pthread_cancel(pr[j]);
+      }
+      for (int j = 0; j < i; j++) {
+        pthread_cancel(co[j]);
+      }
+      free(bigmatrix);
+      free(pr);
+      free(co);
+      free(producer_stats);
+      free(consumer_stats);
+      return 1;
+    }
   }
 
-  // Wait for threads to complete and get their statistics
-  pthread_join(pr, (void **)&producer_stats);
-  pthread_join(co, (void **)&consumer_stats);
+  // Join producer threads and collect statistics
+  for (int i = 0; i < numw; i++) {
+    pthread_join(pr[i], (void **)&producer_stats[i]);
+  }
+
+  // Join consumer threads and collect statistics
+  for (int i = 0; i < numw; i++) {
+    pthread_join(co[i], (void **)&consumer_stats[i]);
+  }
   
 
 
@@ -169,28 +215,39 @@ int main (int argc, char * argv[])
   int constot = 0; // total sum of elements for matrices consumed
   int consmul = 0; // total # multiplications
 
-  // consume ProdConsStats from producer and consumer threads
-  if (producer_stats != NULL) {
-    prs = producer_stats->matrixtotal;
-    prodtot = producer_stats->sumtotal;
-  }
-  
-  if (consumer_stats != NULL) {
-    cos = consumer_stats->matrixtotal;
-    constot = consumer_stats->sumtotal;
-    consmul = consumer_stats->multtotal;
+  // Combine the stats from all producer threads
+  for (int i = 0; i < numw; i++) {
+    if (producer_stats[i] != NULL) {
+      prs += producer_stats[i]->matrixtotal;
+      prodtot += producer_stats[i]->sumtotal;
+    }
   }
 
-  // consume ProdConsStats from producer and consumer threads [HINT: return from join]
-  // add up total matrix stats in prs, cos, prodtot, constot, consmul
+  // Combine the stats from all consumer threads
+  for (int i = 0; i < numw; i++) {
+    if (consumer_stats[i] != NULL) {
+      cos += consumer_stats[i]->matrixtotal;
+      constot += consumer_stats[i]->sumtotal;
+      consmul += consumer_stats[i]->multtotal;
+    }
+  }
+
 
   printf("Sum of Matrix elements --> Produced=%d = Consumed=%d\n",prs,cos);
   printf("Matrices produced=%d consumed=%d multiplied=%d\n",prodtot,constot,consmul);
 
-  // Free memory
-  free(producer_stats);
-  free(consumer_stats);
-  free(bigmatrix);
+  // Free memory for statistics
+  for (int i = 0; i < numw; i++) {
+    if (producer_stats[i] != NULL) free(producer_stats[i]);
+    if (consumer_stats[i] != NULL) free(consumer_stats[i]);
+  }
+
+    // Free memory for arrays
+    free(producer_stats);
+    free(consumer_stats);
+    free(pr);
+    free(co);
+    free(bigmatrix);
 
   return 0;
 }
